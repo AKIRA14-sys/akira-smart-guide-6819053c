@@ -102,7 +102,12 @@ export const adminUpdateProvider = createServerFn({ method: "POST" })
     const { data: roles } = await context.supabase.from("user_roles").select("role").eq("user_id", context.userId);
     if (!roles?.some((r) => r.role === "owner" || r.role === "admin")) throw new Error("Forbidden");
 
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      enabled?: boolean;
+      priority?: number;
+      default_model?: string | null;
+      api_key?: string | null;
+    } = {};
     if (data.enabled !== undefined) patch.enabled = data.enabled;
     if (data.priority !== undefined) patch.priority = data.priority;
     if (data.default_model !== undefined) patch.default_model = data.default_model;
