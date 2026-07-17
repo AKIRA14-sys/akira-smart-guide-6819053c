@@ -75,6 +75,7 @@ function AdminPage() {
       <nav className="glass mb-4 flex overflow-x-auto rounded-2xl p-1 text-xs">
         {([
           ["providers", "Providers", Cog],
+          ["secrets", "API Keys", KeyRound],
           ["users", "Users", Users],
           ["plans", "Plans", Crown],
           ["analytics", "Analytics", LineChart],
