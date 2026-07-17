@@ -176,6 +176,88 @@ function AdminPage() {
         </div>
       )}
 
+      {tab === "secrets" && (
+        <div className="space-y-3">
+          <div className="glass rounded-2xl p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add new API key</div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input value={newName} onChange={(e) => setNewName(e.target.value.toUpperCase())}
+                placeholder="TAVILY_API_KEY" className="h-9 flex-1 rounded-lg bg-input px-3 text-sm" />
+              <input value={newValue} onChange={(e) => setNewValue(e.target.value)} type="password"
+                placeholder="Paste key value" className="h-9 flex-1 rounded-lg bg-input px-3 text-sm" />
+              <button
+                onClick={async () => {
+                  const name = newName.trim();
+                  if (!name) return toast.error("Name required");
+                  try {
+                    await upsertSec({ data: { name, value: newValue } });
+                    setNewName(""); setNewValue("");
+                    toast.success("API key added");
+                    refresh();
+                  } catch (e) { toast.error((e as Error).message); }
+                }}
+                className="flex h-9 items-center justify-center gap-1 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">
+                <Plus size={14} /> Add
+              </button>
+            </div>
+            <div className="mt-2 text-[10px] text-muted-foreground">Uppercase letters, numbers, and underscores only (e.g. TAVILY_API_KEY, BRAVE_API_KEY).</div>
+          </div>
+
+          {secrets.map((s) => (
+            <div key={s.id} className="glass rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-sm font-semibold">{s.name}</div>
+                  {s.description && <div className="truncate text-[11px] text-muted-foreground">{s.description}</div>}
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    {s.has_value ? <span className="text-primary">saved · {s.masked}</span> : "not set"}
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Delete ${s.name}?`)) return;
+                    await delSec({ data: { id: s.id } });
+                    toast.success("Deleted");
+                    refresh();
+                  }}
+                  className="rounded-lg border border-destructive p-2 text-destructive" aria-label="Delete">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input id={`sec-${s.id}`} type="password"
+                  placeholder={s.has_value ? "Paste new value to replace" : "Paste key value"}
+                  className="h-9 flex-1 rounded-lg bg-input px-3 text-sm" />
+                <button
+                  onClick={async () => {
+                    const el = document.getElementById(`sec-${s.id}`) as HTMLInputElement;
+                    const v = el?.value ?? "";
+                    if (!v.trim()) return toast.error("Enter a value first");
+                    await upsertSec({ data: { id: s.id, name: s.name, value: v } });
+                    el.value = "";
+                    toast.success("Saved");
+                    refresh();
+                  }}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Save</button>
+                {s.has_value && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Clear value for ${s.name}?`)) return;
+                      await upsertSec({ data: { id: s.id, name: s.name, value: "" } });
+                      toast.success("Cleared");
+                      refresh();
+                    }}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground">Clear</button>
+                )}
+              </div>
+            </div>
+          ))}
+          {secrets.length === 0 && <div className="text-center text-xs text-muted-foreground">No API keys yet.</div>}
+        </div>
+      )}
+
+
+
       {tab === "users" && (
         <div className="glass rounded-2xl">
           {users.map((u) => (
