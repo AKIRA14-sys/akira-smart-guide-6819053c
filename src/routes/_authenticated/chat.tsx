@@ -30,6 +30,7 @@ function ChatPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
 
