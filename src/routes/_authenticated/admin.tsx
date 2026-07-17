@@ -3,15 +3,16 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { adminListProviders, adminUpdateProvider, adminTestProvider } from "@/lib/ai.functions";
 import { listUsers, getAnalytics, updatePlan, getMyRole } from "@/lib/admin.functions";
+import { listAppSecrets, upsertAppSecret, deleteAppSecret } from "@/lib/secrets.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Users, LineChart, Cog, Crown, ArrowLeft } from "lucide-react";
+import { Shield, Users, LineChart, Cog, Crown, ArrowLeft, KeyRound, Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-type Tab = "providers" | "users" | "plans" | "analytics";
+type Tab = "providers" | "secrets" | "users" | "plans" | "analytics";
 
 function AdminPage() {
   const listProv = useServerFn(adminListProviders);
