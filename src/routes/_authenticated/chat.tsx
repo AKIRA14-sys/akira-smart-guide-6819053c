@@ -189,9 +189,27 @@ function ChatPage() {
           )}
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "glass"}`}>
-                {m.content}
-                {m.provider && <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">via {m.provider}</div>}
+              <div className={`group max-w-[85%] rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "glass"}`}>
+                <div className="whitespace-pre-wrap">{m.content}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {m.provider && <span className="text-[10px] uppercase tracking-wider text-muted-foreground">via {m.provider}</span>}
+                  {m.role === "assistant" && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(m.content);
+                          setCopiedId(m.id);
+                          setTimeout(() => setCopiedId((c) => (c === m.id ? null : c)), 1500);
+                        } catch { toast.error("Copy failed"); }
+                      }}
+                      className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                      aria-label="Copy"
+                    >
+                      {copiedId === m.id ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedId === m.id ? "Copied" : "Copy"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
