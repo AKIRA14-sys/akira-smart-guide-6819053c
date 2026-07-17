@@ -18,6 +18,9 @@ function AdminPage() {
   const listProv = useServerFn(adminListProviders);
   const updProv = useServerFn(adminUpdateProvider);
   const testProv = useServerFn(adminTestProvider);
+  const listSec = useServerFn(listAppSecrets);
+  const upsertSec = useServerFn(upsertAppSecret);
+  const delSec = useServerFn(deleteAppSecret);
   const usersFn = useServerFn(listUsers);
   const analyticsFn = useServerFn(getAnalytics);
   const planFn = useServerFn(updatePlan);
@@ -25,10 +28,13 @@ function AdminPage() {
 
   const [tab, setTab] = useState<Tab>("providers");
   const [providers, setProviders] = useState<any[]>([]);
+  const [secrets, setSecrets] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newValue, setNewValue] = useState("");
 
   useEffect(() => { roleFn().then((r: any) => setAllowed(r.isAdmin)); }, [roleFn]);
   useEffect(() => { if (allowed) refresh(); }, [allowed, tab]);
@@ -36,6 +42,7 @@ function AdminPage() {
   async function refresh() {
     try {
       if (tab === "providers") setProviders(await listProv() as any[]);
+      if (tab === "secrets") setSecrets(await listSec() as any[]);
       if (tab === "users") setUsers(await usersFn() as any[]);
       if (tab === "analytics") setAnalytics(await analyticsFn());
       if (tab === "plans") {
