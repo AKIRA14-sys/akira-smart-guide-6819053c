@@ -106,28 +106,60 @@ function AdminPage() {
                     onBlur={async (e) => { await updProv({ data: { id: p.id, default_model: e.target.value } }); }}
                     className="mt-1 h-9 w-full rounded-lg bg-input px-3" />
                 </label>
-                <label className="col-span-2 block">
-                  <span className="text-muted-foreground">API Key {p.has_key && <span className="text-primary">(saved · {p.api_key})</span>}</span>
-                  <input type="password" placeholder={p.provider === "lovable" ? "not required" : "paste key"}
-                    onBlur={async (e) => {
-                      if (!e.target.value) return;
-                      await updProv({ data: { id: p.id, api_key: e.target.value } });
-                      e.target.value = "";
-                      toast.success("Key saved");
-                      refresh();
-                    }}
-                    className="mt-1 h-9 w-full rounded-lg bg-input px-3" />
-                </label>
+                <div className="col-span-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-muted-foreground">API Key</span>
+                    {p.has_key ? (
+                      <span className="text-[10px] text-primary">saved · {p.api_key}</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">
+                        {p.provider === "lovable" ? "not required" : "not set"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      id={`key-${p.id}`}
+                      type="password"
+                      placeholder={p.has_key ? "Paste new key to replace" : "Paste API key"}
+                      className="h-9 flex-1 rounded-lg bg-input px-3"
+                    />
+                    <button
+                      onClick={async () => {
+                        const el = document.getElementById(`key-${p.id}`) as HTMLInputElement;
+                        const v = el?.value?.trim();
+                        if (!v) return toast.error("Enter a key first");
+                        await updProv({ data: { id: p.id, api_key: v } });
+                        el.value = "";
+                        toast.success("Key saved");
+                        refresh();
+                      }}
+                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                    >
+                      Save
+                    </button>
+                    {p.has_key && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Remove API key for ${p.display_name}?`)) return;
+                          await updProv({ data: { id: p.id, api_key: "" } });
+                          toast.success("Key removed");
+                          refresh();
+                        }}
+                        className="rounded-lg border border-destructive px-3 py-1.5 text-xs text-destructive"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="mt-3 flex items-center gap-2">
                 <button onClick={async () => {
                   const r = await testProv({ data: { id: p.id } }) as any;
                   (r.status === "ok" ? toast.success : toast.error)(`${p.display_name}: ${r.message}`);
                   refresh();
-                }} className="rounded-lg bg-muted px-3 py-1.5 text-xs">Test</button>
-                {p.has_key && <button onClick={async () => {
-                  await updProv({ data: { id: p.id, api_key: "" } }); toast.success("Key removed"); refresh();
-                }} className="rounded-lg text-xs text-destructive">Remove key</button>}
+                }} className="rounded-lg bg-muted px-3 py-1.5 text-xs">Test connection</button>
                 {p.last_status && <span className="ml-auto truncate text-[10px] text-muted-foreground">{p.last_status}</span>}
               </div>
             </div>
