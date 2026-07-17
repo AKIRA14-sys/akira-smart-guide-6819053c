@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { chatCompletion } from "@/lib/ai.functions";
 import { getMyRole } from "@/lib/admin.functions";
 import { toast } from "sonner";
-import { Send, Mic, MicOff, Plus, LogOut, Shield, Crown, Volume2 } from "lucide-react";
+import { Send, Mic, MicOff, Plus, LogOut, Shield, Crown, Volume2, Copy, Check } from "lucide-react";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider?: string };
 type Conv = { id: string; title: string };
