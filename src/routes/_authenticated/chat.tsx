@@ -4,8 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { chatCompletion } from "@/lib/ai.functions";
 import { getMyRole } from "@/lib/admin.functions";
+import { webSearchSerp, imageSearchSerp } from "@/lib/serpapi.functions";
 import { toast } from "sonner";
-import { Send, Mic, MicOff, Plus, LogOut, Shield, Crown, Volume2, Copy, Check } from "lucide-react";
+import { Send, Mic, MicOff, Plus, LogOut, Shield, Crown, Volume2, Copy, Check, Globe, Image as ImageIcon } from "lucide-react";
+
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider?: string };
 type Conv = { id: string; title: string };
@@ -21,7 +23,10 @@ function ChatPage() {
   const { user } = Route.useRouteContext() as any;
   const chat = useServerFn(chatCompletion);
   const roleFn = useServerFn(getMyRole);
+  const webSearch = useServerFn(webSearchSerp);
+  const imgSearch = useServerFn(imageSearchSerp);
   const [convs, setConvs] = useState<Conv[]>([]);
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -125,10 +130,49 @@ function ChatPage() {
     setListening(true);
   }
 
+  async function runWebSearch() {
+    const q = input.trim();
+    if (!q || sending) return;
+    setSending(true);
+    try {
+      const res: any = await webSearch({ data: { query: q } });
+      const lines: string[] = [];
+      if (res.answer_box) lines.push(`**Answer:** ${res.answer_box}`, "");
+      for (const r of res.results ?? []) lines.push(`• ${r.title}\n  ${r.link}\n  ${r.snippet}`);
+      const content = lines.length ? lines.join("\n") : "No results.";
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "user", content: `🌐 Web search: ${q}` },
+        { id: crypto.randomUUID(), role: "assistant", content, provider: "serpapi" },
+      ]);
+      setInput("");
+    } catch { toast.error("Search failed."); } finally { setSending(false); }
+  }
+
+  async function runImageSearch() {
+    const q = input.trim();
+    if (!q || sending) return;
+    setSending(true);
+    try {
+      const res: any = await imgSearch({ data: { query: q } });
+      const imgs = (res.images ?? []).slice(0, 8);
+      const md = imgs.length
+        ? imgs.map((i: any) => `![${i.title}](${i.thumbnail})`).join(" ")
+        : "No images.";
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "user", content: `🖼 Image search: ${q}` },
+        { id: crypto.randomUUID(), role: "assistant", content: md, provider: "serpapi" },
+      ]);
+      setInput("");
+    } catch { toast.error("Image search failed."); } finally { setSending(false); }
+  }
+
   async function logout() {
     await supabase.auth.signOut();
     window.location.href = "/";
   }
+
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -230,23 +274,35 @@ function ChatPage() {
 
       {/* Composer */}
       <div className="glass sticky bottom-0 z-20 px-3 py-3">
-        <div className="mx-auto flex max-w-2xl items-end gap-2">
-          <button onClick={toggleVoice} className={`h-11 w-11 shrink-0 rounded-full ${listening ? "animate-pulse-glow bg-primary text-primary-foreground" : "bg-muted"}`} aria-label="Voice">
-            {listening ? <MicOff size={18} className="mx-auto" /> : <Mic size={18} className="mx-auto" />}
-          </button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message AKIRA…"
-            rows={1}
-            className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl bg-input px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button onClick={send} disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-50" aria-label="Send">
-            <Send size={18} className="mx-auto" />
-          </button>
+        <div className="mx-auto flex max-w-2xl flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs">
+            <button onClick={runWebSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Web search">
+              <Globe size={14} /> Web
+            </button>
+            <button onClick={runImageSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Image search">
+              <ImageIcon size={14} /> Images
+            </button>
+            <span className="ml-auto text-[10px] text-muted-foreground">via SerpAPI</span>
+          </div>
+          <div className="flex items-end gap-2">
+            <button onClick={toggleVoice} className={`h-11 w-11 shrink-0 rounded-full ${listening ? "animate-pulse-glow bg-primary text-primary-foreground" : "bg-muted"}`} aria-label="Voice">
+              {listening ? <MicOff size={18} className="mx-auto" /> : <Mic size={18} className="mx-auto" />}
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Message AKIRA…"
+              rows={1}
+              className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl bg-input px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button onClick={send} disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-50" aria-label="Send">
+              <Send size={18} className="mx-auto" />
+            </button>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
