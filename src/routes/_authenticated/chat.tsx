@@ -274,23 +274,35 @@ function ChatPage() {
 
       {/* Composer */}
       <div className="glass sticky bottom-0 z-20 px-3 py-3">
-        <div className="mx-auto flex max-w-2xl items-end gap-2">
-          <button onClick={toggleVoice} className={`h-11 w-11 shrink-0 rounded-full ${listening ? "animate-pulse-glow bg-primary text-primary-foreground" : "bg-muted"}`} aria-label="Voice">
-            {listening ? <MicOff size={18} className="mx-auto" /> : <Mic size={18} className="mx-auto" />}
-          </button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message AKIRA…"
-            rows={1}
-            className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl bg-input px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button onClick={send} disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-50" aria-label="Send">
-            <Send size={18} className="mx-auto" />
-          </button>
+        <div className="mx-auto flex max-w-2xl flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs">
+            <button onClick={runWebSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Web search">
+              <Globe size={14} /> Web
+            </button>
+            <button onClick={runImageSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Image search">
+              <ImageIcon size={14} /> Images
+            </button>
+            <span className="ml-auto text-[10px] text-muted-foreground">via SerpAPI</span>
+          </div>
+          <div className="flex items-end gap-2">
+            <button onClick={toggleVoice} className={`h-11 w-11 shrink-0 rounded-full ${listening ? "animate-pulse-glow bg-primary text-primary-foreground" : "bg-muted"}`} aria-label="Voice">
+              {listening ? <MicOff size={18} className="mx-auto" /> : <Mic size={18} className="mx-auto" />}
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Message AKIRA…"
+              rows={1}
+              className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl bg-input px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button onClick={send} disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-50" aria-label="Send">
+              <Send size={18} className="mx-auto" />
+            </button>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
