@@ -23,7 +23,10 @@ function ChatPage() {
   const { user } = Route.useRouteContext() as any;
   const chat = useServerFn(chatCompletion);
   const roleFn = useServerFn(getMyRole);
+  const webSearch = useServerFn(webSearchSerp);
+  const imgSearch = useServerFn(imageSearchSerp);
   const [convs, setConvs] = useState<Conv[]>([]);
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
