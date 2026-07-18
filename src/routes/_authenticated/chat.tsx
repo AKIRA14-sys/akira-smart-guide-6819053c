@@ -130,10 +130,49 @@ function ChatPage() {
     setListening(true);
   }
 
+  async function runWebSearch() {
+    const q = input.trim();
+    if (!q || sending) return;
+    setSending(true);
+    try {
+      const res: any = await webSearch({ data: { query: q } });
+      const lines: string[] = [];
+      if (res.answer_box) lines.push(`**Answer:** ${res.answer_box}`, "");
+      for (const r of res.results ?? []) lines.push(`• ${r.title}\n  ${r.link}\n  ${r.snippet}`);
+      const content = lines.length ? lines.join("\n") : "No results.";
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "user", content: `🌐 Web search: ${q}` },
+        { id: crypto.randomUUID(), role: "assistant", content, provider: "serpapi" },
+      ]);
+      setInput("");
+    } catch { toast.error("Search failed."); } finally { setSending(false); }
+  }
+
+  async function runImageSearch() {
+    const q = input.trim();
+    if (!q || sending) return;
+    setSending(true);
+    try {
+      const res: any = await imgSearch({ data: { query: q } });
+      const imgs = (res.images ?? []).slice(0, 8);
+      const md = imgs.length
+        ? imgs.map((i: any) => `![${i.title}](${i.thumbnail})`).join(" ")
+        : "No images.";
+      setMessages((m) => [
+        ...m,
+        { id: crypto.randomUUID(), role: "user", content: `🖼 Image search: ${q}` },
+        { id: crypto.randomUUID(), role: "assistant", content: md, provider: "serpapi" },
+      ]);
+      setInput("");
+    } catch { toast.error("Image search failed."); } finally { setSending(false); }
+  }
+
   async function logout() {
     await supabase.auth.signOut();
     window.location.href = "/";
   }
+
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
