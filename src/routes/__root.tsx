@@ -94,12 +94,18 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
-    // Log a visit event once per session
     if (typeof window === "undefined") return;
-    if (!sessionStorage.getItem("akira:visited")) {
-      sessionStorage.setItem("akira:visited", "1");
-      supabase.from("analytics_events").insert({ event: "visit" }).then(() => {});
-    }
+    // Auto sign-in anonymously so users can use AKIRA without any sign-in UI.
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        try { await supabase.auth.signInAnonymously(); } catch {}
+      }
+      if (!sessionStorage.getItem("akira:visited")) {
+        sessionStorage.setItem("akira:visited", "1");
+        supabase.from("analytics_events").insert({ event: "visit" }).then(() => {});
+      }
+    })();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
         router.invalidate();
@@ -108,6 +114,7 @@ function RootComponent() {
     });
     return () => sub.subscription.unsubscribe();
   }, [queryClient, router]);
+
 
   return (
     <QueryClientProvider client={queryClient}>
