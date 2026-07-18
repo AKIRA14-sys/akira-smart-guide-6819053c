@@ -8,6 +8,19 @@ export const Route = createFileRoute("/")({
 
 
 function Landing() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        try { await supabase.auth.signInAnonymously(); } catch {}
+      }
+      if (mounted) setReady(true);
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <div className="relative min-h-[100dvh] overflow-hidden">
       <div className="absolute inset-0 -z-10 opacity-40" aria-hidden>
@@ -21,26 +34,22 @@ function Landing() {
           <span className="text-gradient">AKIRA</span>
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Your futuristic AI, powered by 10+ models with automatic failover, voice, memory, and offline support.
+          Your futuristic AI, powered by 10+ models with automatic failover, voice, memory, and offline support. No sign-in required.
         </p>
 
         <div className="mt-10 flex w-full flex-col gap-3">
           <a
-            href="/auth"
+            href="/chat"
+            aria-disabled={!ready}
             className="animate-pulse-glow flex h-12 items-center justify-center rounded-xl bg-primary text-base font-semibold text-primary-foreground transition-transform active:scale-[0.98]"
           >
-            Get started
+            {ready ? "Enter AKIRA" : "Preparing…"}
           </a>
-          <button
-            onClick={async () => {
-              const { data } = await supabase.auth.getSession();
-              window.location.href = data.session ? "/chat" : "/auth";
-            }}
-            className="glass h-12 rounded-xl text-sm font-medium text-foreground"
-          >
-            I already have an account
-          </button>
+          <a href="/auth" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
+            Admin sign in
+          </a>
         </div>
+
 
         <ul className="mt-12 grid w-full grid-cols-2 gap-3 text-left text-xs">
           {[
