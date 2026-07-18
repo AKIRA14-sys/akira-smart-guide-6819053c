@@ -49,17 +49,8 @@ function AuthPage() {
     }
   }
 
-  async function google() {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-    }
-  }
+
+
 
   return (
     <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-6 py-10">
