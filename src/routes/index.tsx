@@ -45,7 +45,7 @@ function Landing() {
           >
             {ready ? "Enter AKIRA" : "Preparing…"}
           </a>
-          <a href="/auth" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
+          <a href="/auth?redirect=/admin" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
             Admin sign in
           </a>
         </div>
