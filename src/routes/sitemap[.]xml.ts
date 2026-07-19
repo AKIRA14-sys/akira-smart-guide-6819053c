@@ -6,7 +6,7 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async () => {
         const base = ""; // set once published
-        const urls = ["/", "/auth", "/premium"];
+        const urls = ["/", "/chat"];
         const xml =
           `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
           urls.map((u) => `  <url><loc>${base}${u}</loc></url>`).join("\n") +
