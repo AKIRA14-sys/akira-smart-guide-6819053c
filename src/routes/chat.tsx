@@ -3,84 +3,90 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { chatCompletion } from "@/lib/ai.functions";
-import { getMyRole } from "@/lib/admin.functions";
 import { webSearchSerp, imageSearchSerp } from "@/lib/serpapi.functions";
 import { toast } from "sonner";
-import { Send, Mic, MicOff, Plus, LogOut, Shield, Crown, Volume2, Copy, Check, Globe, Image as ImageIcon } from "lucide-react";
-
+import { Send, Mic, Plus, Volume2, Copy, Check, Globe, Image as ImageIcon } from "lucide-react";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider?: string };
 type Conv = { id: string; title: string };
 
-export const Route = createFileRoute("/_authenticated/chat")({
+export const Route = createFileRoute("/chat")({
   component: ChatPage,
 });
 
-// IndexedDB-free simple offline cache using localStorage
 const cacheKey = (uid: string, cid: string) => `akira:msgs:${uid}:${cid}`;
 
 function ChatPage() {
-  const { user } = Route.useRouteContext() as any;
   const chat = useServerFn(chatCompletion);
-  const roleFn = useServerFn(getMyRole);
   const webSearch = useServerFn(webSearchSerp);
   const imgSearch = useServerFn(imageSearchSerp);
-  const [convs, setConvs] = useState<Conv[]>([]);
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [convs, setConvs] = useState<Conv[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sidebar, setSidebar] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
 
-  // Load role
-  useEffect(() => { roleFn().then((r: any) => setIsAdmin(r.isAdmin)).catch(() => {}); }, [roleFn]);
-
-  // Load conversations
+  // Ensure a session (anonymous is fine)
   useEffect(() => {
+    (async () => {
+      let { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        try { await supabase.auth.signInAnonymously(); } catch {}
+        ({ data } = await supabase.auth.getSession());
+      }
+      setUserId(data.session?.user.id ?? null);
+    })();
+  }, []);
+
+  // Load conversations once we have a user
+  useEffect(() => {
+    if (!userId) return;
     supabase.from("conversations").select("id, title").order("updated_at", { ascending: false }).limit(50)
       .then(({ data }) => {
         setConvs((data ?? []) as Conv[]);
         if (data?.[0]) setActiveId(data[0].id);
         else newChat();
       });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
-  // Load messages for active conversation (with offline fallback)
   useEffect(() => {
-    if (!activeId) return;
-    const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey(user.id, activeId)) : null;
+    if (!activeId || !userId) return;
+    const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey(userId, activeId)) : null;
     if (cached) { try { setMessages(JSON.parse(cached)); } catch {} }
     supabase.from("messages").select("id, role, content, provider").eq("conversation_id", activeId).order("created_at")
       .then(({ data }) => {
         if (data) {
           setMessages(data as Message[]);
-          try { localStorage.setItem(cacheKey(user.id, activeId), JSON.stringify(data)); } catch {}
+          try { localStorage.setItem(cacheKey(userId, activeId), JSON.stringify(data)); } catch {}
         }
       });
-  }, [activeId, user.id]);
+  }, [activeId, userId]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function newChat() {
-    const { data } = await supabase.from("conversations").insert({ user_id: user.id, title: "New chat" }).select().single();
-    if (data) { setConvs((c) => [data as Conv, ...c]); setActiveId(data.id); setMessages([]); }
+    if (!userId) return;
+    const { data } = await supabase.from("conversations").insert({ user_id: userId, title: "New chat" }).select().single();
+    if (data) { setConvs((c) => [data as Conv, ...c]); setActiveId(data.id); setMessages([]); setSidebar(false); }
   }
 
   async function send() {
     const text = input.trim();
-    if (!text || sending || !activeId) return;
+    if (!text || sending || !activeId || !userId) return;
     setInput("");
     setSending(true);
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
-    await supabase.from("messages").insert({ conversation_id: activeId, user_id: user.id, role: "user", content: text });
+    await supabase.from("messages").insert({ conversation_id: activeId, user_id: userId, role: "user", content: text });
 
     try {
       const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
@@ -88,24 +94,22 @@ function ChatPage() {
       const asst: Message = { id: crypto.randomUUID(), role: "assistant", content: result.text, provider: result.provider };
       setMessages((m) => {
         const next = [...m, asst];
-        try { localStorage.setItem(cacheKey(user.id, activeId), JSON.stringify(next)); } catch {}
+        try { localStorage.setItem(cacheKey(userId, activeId), JSON.stringify(next)); } catch {}
         return next;
       });
       await supabase.from("messages").insert({
-        conversation_id: activeId, user_id: user.id, role: "assistant",
+        conversation_id: activeId, user_id: userId, role: "assistant",
         content: result.text, provider: result.provider, model: result.model,
       });
-      // Update title from first message
       if (messages.length === 0) {
         const title = text.slice(0, 40);
         await supabase.from("conversations").update({ title }).eq("id", activeId);
         setConvs((c) => c.map((x) => (x.id === activeId ? { ...x, title } : x)));
       }
       if (voiceOn && "speechSynthesis" in window) {
-        const u = new SpeechSynthesisUtterance(result.text);
-        speechSynthesis.speak(u);
+        speechSynthesis.speak(new SpeechSynthesisUtterance(result.text));
       }
-    } catch (e) {
+    } catch {
       toast.error("AKIRA is offline for a moment. Try again shortly.");
     } finally {
       setSending(false);
@@ -156,9 +160,7 @@ function ChatPage() {
     try {
       const res: any = await imgSearch({ data: { query: q } });
       const imgs = (res.images ?? []).slice(0, 8);
-      const md = imgs.length
-        ? imgs.map((i: any) => `![${i.title}](${i.thumbnail})`).join(" ")
-        : "No images.";
+      const md = imgs.length ? imgs.map((i: any) => `![${i.title}](${i.thumbnail})`).join(" ") : "No images.";
       setMessages((m) => [
         ...m,
         { id: crypto.randomUUID(), role: "user", content: `🖼 Image search: ${q}` },
@@ -168,15 +170,16 @@ function ChatPage() {
     } catch { toast.error("Image search failed."); } finally { setSending(false); }
   }
 
-  async function logout() {
-    await supabase.auth.signOut();
-    window.location.href = "/";
+  async function copyMsg(m: Message) {
+    try {
+      await navigator.clipboard.writeText(m.content);
+      setCopiedId(m.id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch { toast.error("Copy failed"); }
   }
-
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      {/* Header */}
       <header className="glass sticky top-0 z-20 flex items-center gap-3 px-4 py-3">
         <button onClick={() => setSidebar(true)} className="rounded-lg p-2 hover:bg-muted" aria-label="Menu">
           <span className="block h-0.5 w-5 bg-foreground" />
@@ -191,14 +194,9 @@ function ChatPage() {
           <button onClick={() => setVoiceOn(!voiceOn)} className={`rounded-lg p-2 ${voiceOn ? "text-primary" : "text-muted-foreground"}`} aria-label="TTS">
             <Volume2 size={18} />
           </button>
-          {isAdmin && (
-            <a href="/admin" className="rounded-lg p-2 text-accent" aria-label="Admin"><Shield size={18} /></a>
-          )}
-          <a href="/premium" className="rounded-lg p-2 text-muted-foreground" aria-label="Premium"><Crown size={18} /></a>
         </div>
       </header>
 
-      {/* Sidebar drawer */}
       {sidebar && (
         <div className="fixed inset-0 z-30 flex">
           <div className="glass flex w-72 max-w-[85vw] flex-col p-4">
@@ -214,95 +212,51 @@ function ChatPage() {
                 </button>
               ))}
             </div>
-            <button onClick={logout} className="mt-2 flex h-10 items-center justify-center gap-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">
-              <LogOut size={16} /> Sign out
-            </button>
           </div>
           <div onClick={() => setSidebar(false)} className="flex-1 bg-background/50 backdrop-blur-sm" />
         </div>
       )}
 
-      {/* Messages */}
       <main className="flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-2xl space-y-3">
           {messages.length === 0 && (
             <div className="glass mt-10 rounded-2xl p-6 text-center">
               <div className="text-gradient text-lg font-bold">Hi, I'm AKIRA.</div>
-              <div className="mt-1 text-xs text-muted-foreground">Ask me anything — I'll route across 10+ AI providers automatically.</div>
+              <p className="mt-2 text-sm text-muted-foreground">Ask me anything, search the web, or find images.</p>
             </div>
           )}
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`group max-w-[85%] rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "glass"}`}>
-                <div className="whitespace-pre-wrap">{m.content}</div>
-                <div className="mt-1 flex items-center gap-2">
-                  {m.provider && <span className="text-[10px] uppercase tracking-wider text-muted-foreground">via {m.provider}</span>}
-                  {m.role === "assistant" && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(m.content);
-                          setCopiedId(m.id);
-                          setTimeout(() => setCopiedId((c) => (c === m.id ? null : c)), 1500);
-                        } catch { toast.error("Copy failed"); }
-                      }}
-                      className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-                      aria-label="Copy"
-                    >
-                      {copiedId === m.id ? <Check size={12} /> : <Copy size={12} />}
-                      {copiedId === m.id ? "Copied" : "Copy"}
-                    </button>
-                  )}
-                </div>
+              <div className={`group relative max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "glass"}`}>
+                {m.content}
+                {m.role === "assistant" && (
+                  <button onClick={() => copyMsg(m)} className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" aria-label="Copy">
+                    {copiedId === m.id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                  </button>
+                )}
               </div>
             </div>
           ))}
-          {sending && (
-            <div className="flex justify-start">
-              <div className="glass rounded-2xl px-4 py-3 text-sm">
-                <span className="inline-flex gap-1">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:120ms]" />
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:240ms]" />
-                </span>
-              </div>
-            </div>
-          )}
           <div ref={endRef} />
         </div>
       </main>
 
-      {/* Composer */}
-      <div className="glass sticky bottom-0 z-20 px-3 py-3">
-        <div className="mx-auto flex max-w-2xl flex-col gap-2">
-          <div className="flex items-center gap-2 text-xs">
-            <button onClick={runWebSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Web search">
-              <Globe size={14} /> Web
-            </button>
-            <button onClick={runImageSearch} disabled={sending || !input.trim()} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-muted-foreground disabled:opacity-40 hover:text-foreground" aria-label="Image search">
-              <ImageIcon size={14} /> Images
-            </button>
-            <span className="ml-auto text-[10px] text-muted-foreground">via SerpAPI</span>
-          </div>
-          <div className="flex items-end gap-2">
-            <button onClick={toggleVoice} className={`h-11 w-11 shrink-0 rounded-full ${listening ? "animate-pulse-glow bg-primary text-primary-foreground" : "bg-muted"}`} aria-label="Voice">
-              {listening ? <MicOff size={18} className="mx-auto" /> : <Mic size={18} className="mx-auto" />}
-            </button>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Message AKIRA…"
-              rows={1}
-              className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl bg-input px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button onClick={send} disabled={sending || !input.trim()} className="h-11 w-11 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-50" aria-label="Send">
-              <Send size={18} className="mx-auto" />
-            </button>
-          </div>
+      <footer className="glass sticky bottom-0 z-10 border-t border-border/50 px-3 py-3">
+        <div className="mx-auto flex max-w-2xl items-end gap-2">
+          <button onClick={runWebSearch} className="rounded-lg p-2 text-muted-foreground hover:text-foreground" aria-label="Web search"><Globe size={18} /></button>
+          <button onClick={runImageSearch} className="rounded-lg p-2 text-muted-foreground hover:text-foreground" aria-label="Image search"><ImageIcon size={18} /></button>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            rows={1}
+            placeholder="Message AKIRA…"
+            className="min-h-10 flex-1 resize-none rounded-xl bg-muted/40 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+          />
+          <button onClick={toggleVoice} className={`rounded-lg p-2 ${listening ? "text-primary" : "text-muted-foreground"}`} aria-label="Mic"><Mic size={18} /></button>
+          <button onClick={send} disabled={sending || !input.trim()} className="rounded-xl bg-primary p-2 text-primary-foreground disabled:opacity-50" aria-label="Send"><Send size={18} /></button>
         </div>
-      </div>
-
+      </footer>
     </div>
   );
 }
