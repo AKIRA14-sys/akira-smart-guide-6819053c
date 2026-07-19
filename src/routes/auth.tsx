@@ -2,13 +2,18 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { z } from "zod";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (s: Record<string, unknown>) =>
+    z.object({ redirect: z.string().optional() }).parse(s),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
+  const dest = redirect && redirect.startsWith("/") ? redirect : "/chat";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,14 +22,18 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/chat" });
+      if (data.session && !data.session.user.is_anonymous) navigate({ to: dest });
     });
-  }, [navigate]);
+  }, [navigate, dest]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
+      // If there's an anonymous session, sign it out first so sign in lands cleanly.
+      const { data: cur } = await supabase.auth.getSession();
+      if (cur.session?.user.is_anonymous) await supabase.auth.signOut();
+
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
@@ -41,16 +50,13 @@ function AuthPage() {
         if (error) throw error;
       }
       const { data } = await supabase.auth.getSession();
-      if (data.session) navigate({ to: "/chat" });
+      if (data.session) navigate({ to: dest });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setLoading(false);
     }
   }
-
-
-
 
   return (
     <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-6 py-10">
@@ -65,9 +71,6 @@ function AuthPage() {
             </div>
           </div>
         </div>
-
-
-
 
         <form onSubmit={submit} className="space-y-3">
           {mode === "signup" && (
