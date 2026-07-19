@@ -57,8 +57,22 @@ function AdminPage() {
       <div className="mx-auto max-w-md p-8 text-center">
         <div className="glass rounded-2xl p-6">
           <Shield className="mx-auto text-destructive" />
-          <div className="mt-2 font-semibold">Not authorized</div>
-          <a href="/chat" className="mt-4 inline-block text-sm text-primary">← Back to chat</a>
+          <div className="mt-2 font-semibold">Admin sign-in required</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            You need the owner account to access this page.
+          </p>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/auth?redirect=/admin";
+            }}
+            className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            Sign in as admin
+          </button>
+          <div className="mt-3">
+            <a href="/chat" className="text-xs text-muted-foreground">← Back to chat</a>
+          </div>
         </div>
       </div>
     );
